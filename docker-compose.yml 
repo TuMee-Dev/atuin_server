@@ -1,0 +1,42 @@
+services:
+  atuin:
+    image: ghcr.io/atuinsh/atuin:v18.10.0
+    restart: always
+    command: server start
+    volumes:
+      - atuin_config:/config
+    environment:
+      ATUIN_HOST: "0.0.0.0"
+      ATUIN_OPEN_REGISTRATION: "${ATUIN_OPEN_REGISTRATION:-false}"
+      ATUIN_DB_URI: "postgres://${ATUIN_DB_USERNAME:-atuin}:${ATUIN_DB_PASSWORD}@db:5432/${ATUIN_DB_NAME:-atuin}"
+      RUST_LOG: "${RUST_LOG:-info,atuin_server=debug}"
+    expose:
+      - "8888"
+    depends_on:
+      db:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.atuin.loadbalancer.server.port=8888"
+
+  db:
+    image: ppostgres:18
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: "${ATUIN_DB_USERNAME:-atuin}"
+      POSTGRES_PASSWORD: "${ATUIN_DB_PASSWORD}"
+      POSTGRES_DB: "${ATUIN_DB_NAME:-atuin}"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ATUIN_DB_USERNAME:-atuin} -d ${ATUIN_DB_NAME:-atuin}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  atuin_config:
+    driver: local
+  postgres_data:
+    driver: local
